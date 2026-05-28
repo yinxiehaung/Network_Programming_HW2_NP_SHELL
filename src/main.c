@@ -19,8 +19,7 @@ int main(void) {
   if (server == NULL || shared_state == NULL) {
     perror("Create Server Error.\n");
     return 1;
-  }
-  signal(SIGCHLD, SIG_IGN);
+  } 
   printf("Server Listening...\n");
   while (1) {
     struct sockaddr_in client_addr;
