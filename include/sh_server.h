@@ -3,7 +3,9 @@
 #include "my_net.h"
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/mman.h>
 #include <fcntl.h>
+
 #define MAX_CLIENTS 30
 typedef struct client_ctx_s client_ctx_t;
 typedef struct shared_ctx_s shared_ctx_t;

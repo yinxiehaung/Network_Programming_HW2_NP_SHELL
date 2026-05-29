@@ -1,12 +1,12 @@
 #include "../include/yxsh_core.h"
 #include "../include/sh_server.h"
-#include <signal.h>
 #define MAX_COMMAND_SIZE (1024 * sizeof(char))
+
 
 int main(void) {
   char errbuf[1024];
   mem_arena_t server_arena = INIT_ARENA;
-  ssize_t state = shared_arena_init(&server_arena, MiB(1), errbuf);
+  ssize_t state = arena_init(&server_arena, MiB(1), errbuf);
   if (state < 0) {
     perror(errbuf);
     return 1;
@@ -14,7 +14,15 @@ int main(void) {
    
   printf("Create Server...\n");
   net_server_t *server = net_server_init(7000, 5, &server_arena);
-  shared_ctx_t *shared_state = arena_push_type(server_arena, shared_ctx_t, true, errbuf); 
+ 
+  int shm_fd = shm_open("/yxsh_mem", O_CREAT | O_RDWR | O_TRUNC, 0666);
+  if (shm_fd < 0) {
+    perror("The shm_open Fail.\n");
+    return 1;
+  }
+  ftruncate(shm_fd, sizeof(shared_ctx_t));
+  shared_ctx_t *shared_state = mmap(NULL, sizeof(shared_ctx_t), 
+          PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0); 
 
   if (server == NULL || shared_state == NULL) {
     perror("Create Server Error.\n");

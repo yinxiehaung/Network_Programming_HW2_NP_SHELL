@@ -46,100 +46,6 @@ static int buildin_cd(shell_ctx_t *ctx, shell_AST_t *ast) {
   return 0;
 }
 
-static int buildin_who(shell_ctx_t *ctx, shell_AST_t *ast) {
-    shared_ctx_t *shm = ctx->shared_state; 
-    printf("<ID>\t<nickname>\t<IP:port>\t<indicate me>\n");
-    for (int i = 1; i <= MAX_CLIENTS; i++) {
-        if (shm->clients[i].is_active) {
-            printf("%d\t%s\t%s\t%s\n", 
-                   shm->clients[i].id,
-                   shm->clients[i].name,
-                   shm->clients[i].ip_port,
-                   (i == ctx->my_id) ? "<-me" : "");
-        }
-    }
-    return 0;
-}
-
-static int buildin_yell(shell_ctx_t *ctx, shell_AST_t *ast) {
-    if (ast->argc < 2) return 1;
-    shared_ctx_t *shm = ctx->shared_state;
-    char user_msg[1024] = {0};
-    for (ui64 i = 1; i < ast->argc; i++) {
-        strcat(user_msg, ast->argv[i].str); 
-        if (i < ast->argc - 1) {
-            strcat(user_msg, " "); 
-        }
-    }
-    char broadcast_msg[2048];
-    sprintf(broadcast_msg, "*** %s yelled ***: %s\n", 
-            shm->clients[ctx->my_id].name, user_msg);
-    for (int i = 1; i <= MAX_CLIENTS; i++) {
-        if (shm->clients[i].is_active) {
-            int fd = open(shm->clients[i].fifo_path, O_WRONLY | O_NONBLOCK);
-            if (fd != -1) {
-                write(fd, broadcast_msg, strlen(broadcast_msg));
-                close(fd);
-            }
-        }
-    }
-    return 0;
-}
-
-static int buildin_tell(shell_ctx_t *ctx, shell_AST_t *ast) {
-    if (ast->argc < 3) return 1;
-    shared_ctx_t *shm = ctx->shared_state;
-    int target_id = atoi(ast->argv[1].str);
-    if (target_id <= 0 || target_id > MAX_CLIENTS || shm->clients[target_id].is_active == 0) {
-        printf("*** Error: user #%d does not exist yet. ***\n", target_id);
-        return 1;
-    }
-    char user_msg[1024] = {0};
-    for (ui64 i = 2; i < ast->argc; i++) {
-        strcat(user_msg, ast->argv[i].str);
-        if (i < ast->argc - 1) {
-            strcat(user_msg, " ");
-        }
-    }
-    char final_msg[2048];
-    sprintf(final_msg, "*** %s told you ***: %s\n", 
-            shm->clients[ctx->my_id].name, user_msg);
-    int fd = open(shm->clients[target_id].fifo_path, O_WRONLY | O_NONBLOCK);
-    if (fd != -1) {
-        write(fd, final_msg, strlen(final_msg));
-        close(fd);
-    }
-    return 0; 
-}
-
-static int buildin_name(shell_ctx_t *ctx, shell_AST_t *ast) { 
-    if (ast->argc < 2) return 1;
-    shared_ctx_t *shm = ctx->shared_state;
-    char *new_name = ast->argv[1].str;
-
-    for (int i = 1; i <= MAX_CLIENTS; i++) {
-        if (shm->clients[i].is_active && strcmp(shm->clients[i].name, new_name) == 0) {
-            printf("*** User '%s' already exists. ***\n", new_name);
-            return 1;
-        }
-    }
-    strcpy(shm->clients[ctx->my_id].name, new_name);
-    char broadcast_msg[1024];
-    sprintf(broadcast_msg, "*** User from %s is named '%s'. ***\n", 
-            shm->clients[ctx->my_id].ip_port, new_name);
-    for (int i = 1; i <= MAX_CLIENTS; i++) {
-        if (shm->clients[i].is_active) {
-            int fd = open(shm->clients[i].fifo_path, O_WRONLY | O_NONBLOCK);
-            if (fd != -1) {
-                write(fd, broadcast_msg, strlen(broadcast_msg));
-                close(fd);
-            }
-        }
-    }
-    return 0;
-}
-
-
 struct {
   const char *name;
   buildin_func_t func;
@@ -147,11 +53,7 @@ struct {
                {"setenv", buildin_setenv},
                {"printenv", buildin_printenv},
                {"exit", buildin_exit},
-               {"quit", buildin_exit},
-               {"yell", buildin_yell},
-               {"tell", buildin_tell},
-               {"who", buildin_who},
-               {"name", buildin_name},
+               {"quit", buildin_exit}, 
                {NULL, NULL}};
 
 static int execute_ast(shell_ctx_t *ctx, shell_AST_t *ast);
@@ -160,7 +62,7 @@ static int str_execvp(mem_arena_t *arena, string_t *argv, ui64 argc) {
   char **c_argv = arena_push_arr(*arena, char *, argc + 1, 1, NULL);
   for (ui64 i = 0; i < argc; i++) {
     char *c_str = str_to_cstr(arena, &argv[i]);
-    c_argv[i] = c_str;
+    c_argv[i] = c_str; 
   }
   c_argv[argc] = NULL;
   return execvp(c_argv[0], c_argv);
@@ -225,9 +127,15 @@ static int exe_command(shell_ctx_t *ctx, shell_AST_t *ast) {
   if (check_and_run_internal_command(ctx, ast)) {
     return 0;
   }
+  
+  char id_str[16];
+  sprintf(id_str, "%d", ctx->my_id);
+  setenv("MY_ID", id_str, 1);
+  setenv("SHM_PATH", "/yxsh_mem", 1);
+
   pid_t child_pid = fork();
   if (child_pid == 0) {
-    __exe_command(ctx, ast);
+    __exe_command(ctx, ast); 
   } else if (child_pid > 0) {
     int status;
     waitpid(child_pid, &status, 0);

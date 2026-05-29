@@ -24,7 +24,7 @@ int yxsh_run(shell_ctx_t *ctx) {
 }
 
 void init_shell_ctx(shell_ctx_t *ctx, mem_arena_t *arena, shared_ctx_t *shared_state,int id,char *errbuf) {
-  setenv("PATH", "./bin:.", 1);
+  setenv("PATH", "bin:.", 1);
   ctx->arena = arena; 
   ctx->exit_status = 0;
   ctx->command = INIT_STRING;
