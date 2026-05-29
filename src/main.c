@@ -1,9 +1,16 @@
 #include "../include/yxsh_core.h"
 #include "../include/sh_server.h"
+#include <signal.h>
 #define MAX_COMMAND_SIZE (1024 * sizeof(char))
+
+void handle_sigint(int sig) {
+    shm_unlink("/yxsh_mem"); 
+    exit(0);
+}
 
 
 int main(void) {
+  signal(SIGINT, handle_sigint);
   char errbuf[1024];
   mem_arena_t server_arena = INIT_ARENA;
   ssize_t state = arena_init(&server_arena, MiB(1), errbuf);
